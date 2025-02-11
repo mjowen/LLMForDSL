@@ -14,6 +14,7 @@ available_functions = {
 }
 
 def process_input(msg):
+    operations = []
     messages = [{'role': 'user', 'content': msg}]
 
     response: ChatResponse = chat('llama3-groq-tool-use:8b', messages=messages, 
@@ -31,13 +32,41 @@ def process_input(msg):
                     print('Calling function:', tool.function.name)
                     print('Arguments:', tool.function.arguments)
                 function_to_call(**tool.function.arguments)
+                operations.append((tool.function.name, tool.function.arguments))
             else:
                 print('Function', tool.function.name, 'not found')
     else:
         print(response.message.content)
+    return operations
 
+def generateFromOps(operations):
+    genome = dsl.Genome()
+    available_functions = {
+        'addSynComp': genome.addSynComp,
+        'removeSynComp': genome.removeSynComp,
+        'report': genome.report,
+    }
+    for op in operations:
+        for o in op:
+            if o[0] == 'report':
+                pass
+            else:
+                available_functions.get(o[0])(**o[1])
+    return genome, available_functions
+
+
+operations = []
 while True:
-    msg = input('Ready for input:\n')
-    process_input(msg)
+    msg = input('Ready for input (natural language, undo, or exit):\n')
+    if msg == 'exit':
+        break
+    elif msg == 'undo':
+        if operations:
+            operations.pop()
+            genome, available_functions = generateFromOps(operations)
+        else:
+            print('No operations to undo')
+    else:
+        operations.append(process_input(msg))
     if debug:
         genome.report()
